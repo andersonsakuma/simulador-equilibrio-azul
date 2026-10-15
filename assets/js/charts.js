@@ -1,4 +1,4 @@
-/* Gráficos SVG mínimos, compartilhados pelo PDF e pelo painel interativo.
+/* Gráficos SVG mínimos do simulador, da página inicial e do dashboard.
    Cores entram como nomes de variáveis CSS (ex.: 'var(--s1)'). */
 const Charts = (() => {
   const NS = 'http://www.w3.org/2000/svg';
@@ -8,8 +8,9 @@ const Charts = (() => {
     if (parent) parent.appendChild(e);
     return e;
   };
-  const fmt = (v, d = 2) => (Math.abs(v) >= 1000 ? v.toLocaleString('pt-BR', { maximumFractionDigits: 0 })
-    : v.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: d }));
+  const loc = () => (typeof window !== 'undefined' && window.I18N ? window.I18N.loc() : 'pt-BR');
+  const fmt = (v, d = 2) => (Math.abs(v) >= 1000 ? v.toLocaleString(loc(), { maximumFractionDigits: 0 })
+    : v.toLocaleString(loc(), { minimumFractionDigits: 0, maximumFractionDigits: d }));
   const niceTicks = (min, max, n = 5) => {
     const span = max - min || 1;
     const step0 = span / n, mag = Math.pow(10, Math.floor(Math.log10(step0)));
@@ -118,7 +119,7 @@ const Charts = (() => {
   }
 
   /* Linhas. series: [{name,color,x:[],y:[],dash}], marks: [{x,y,label,color}], vlines/hlines: [{v,label}] */
-  function lines(host, { series, W = 640, H = 260, xLabel = '', yLabel = '', xDomain, yDomain, marks = [], vlines = [], hlines = [], interactive = false, xFmt = v => fmt(v, 2), yFmt = v => fmt(v, 3), zeroLine = false }) {
+  function lines(host, { series, W = 640, H = 260, xLabel = '', xName = '', yLabel = '', xDomain, yDomain, marks = [], vlines = [], hlines = [], interactive = false, xFmt = v => fmt(v, 2), yFmt = v => fmt(v, 3), zeroLine = false }) {
     host.innerHTML = '';
     legend(host, series);
     const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, class: 'ch', role: 'img' }, host);
@@ -169,11 +170,11 @@ const Charts = (() => {
         const s0 = series[0]; let bi = 0, bd = Infinity;
         s0.x.forEach((v, i) => { const dd = Math.abs(v - xv); if (dd < bd) { bd = dd; bi = i; } });
         cross.setAttribute('x1', sx(s0.x[bi])); cross.setAttribute('x2', sx(s0.x[bi])); cross.setAttribute('visibility', 'visible');
-        let html = `<b>${xLabel || 'x'} = ${xFmt(s0.x[bi])}</b>`;
+        let html = `<b>${xName || xLabel || 'x'} = ${xFmt(s0.x[bi])}</b>`;
         series.forEach((s, j) => {
           const yv = s.y[bi]; if (yv === undefined) return;
           dots[j].setAttribute('cx', sx(s.x[bi])); dots[j].setAttribute('cy', sy(yv)); dots[j].setAttribute('visibility', 'visible');
-          html += `<br><i style="background:${s.color}"></i>${s.name}: ${yFmt(yv)}`;
+          html += `<br><i class="lk" style="background:${s.color}"></i><b>${yFmt(yv)}</b> ${s.name}`;
         });
         const [px, py] = relPos(host, ev); tip.show(html, px, py);
       });
@@ -181,6 +182,100 @@ const Charts = (() => {
     }
     return svg;
   }
-  return { hbar, columns, lines, fmt };
+
+  /* Dispersão. series: [{name,color,pts:[{x,y,label}]}]; tip(pt, s) devolve o HTML do balão; onClick(pt). */
+  function scatter(host, { series, W = 640, H = 300, xLabel = '', yLabel = '', xFmt = v => fmt(v, 0), yFmt = v => fmt(v, 0), tip, onClick }) {
+    host.innerHTML = '';
+    legend(host, series);
+    const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, class: 'ch', role: 'img' }, host);
+    const L = 56, R = 16, T = 12, B = 42;
+    const all = series.flatMap(s => s.pts);
+    const xt = coverTicks(Math.max(...all.map(p => p.x), 0) || 1, 5), yt = coverTicks(Math.max(...all.map(p => p.y), 0) || 1, 4);
+    const xb = xt[xt.length - 1], yb = yt[yt.length - 1];
+    const sx = v => L + (W - L - R) * v / xb, sy = v => H - B - (H - B - T) * v / yb;
+    yt.forEach(v => {
+      el('line', { x1: L, x2: W - R, y1: sy(v), y2: sy(v), class: v === 0 ? 'ch-axis' : 'ch-grid' }, svg);
+      el('text', { x: L - 6, y: sy(v) + 4, class: 'ch-tick', 'text-anchor': 'end' }, svg).textContent = yFmt(v);
+    });
+    xt.forEach(v => { el('text', { x: sx(v), y: H - B + 16, class: 'ch-tick', 'text-anchor': 'middle' }, svg).textContent = xFmt(v); });
+    if (xLabel) el('text', { x: (L + W - R) / 2, y: H - 6, class: 'ch-axtitle', 'text-anchor': 'middle' }, svg).textContent = xLabel;
+    if (yLabel) el('text', { x: 12, y: (T + H - B) / 2, class: 'ch-axtitle', 'text-anchor': 'middle', transform: `rotate(-90 12 ${(T + H - B) / 2})` }, svg).textContent = yLabel;
+    const pts = [];
+    series.forEach(s => s.pts.forEach(p => {
+      const c = el('circle', { cx: sx(p.x), cy: sy(p.y), r: 4.5, class: 'ch-mark', style: `fill:${s.color}` }, svg);
+      pts.push({ p, s, c, X: sx(p.x), Y: sy(p.y) });
+    }));
+    const tt = tooltipLayer(host);
+    const ring = el('circle', { r: 8, class: 'ch-hover', visibility: 'hidden' }, svg);
+    const hit = el('rect', { x: L, y: T, width: W - L - R, height: H - B - T, class: 'ch-hitarea' }, svg);
+    let atual = null;
+    const perto = ev => {
+      const pt = svg.createSVGPoint(); pt.x = ev.clientX; pt.y = ev.clientY;
+      const q = pt.matrixTransform(svg.getScreenCTM().inverse());
+      let b = null, bd = 24 * 24 * (W / Math.max(1, host.clientWidth)) ** 2;
+      pts.forEach(o => { const d = (o.X - q.x) ** 2 + (o.Y - q.y) ** 2; if (d < bd) { bd = d; b = o; } });
+      return b;
+    };
+    hit.addEventListener('mousemove', ev => {
+      atual = perto(ev);
+      if (!atual) { tt.hide(); ring.setAttribute('visibility', 'hidden'); hit.style.cursor = 'crosshair'; return; }
+      ring.setAttribute('cx', atual.X); ring.setAttribute('cy', atual.Y); ring.setAttribute('visibility', 'visible');
+      hit.style.cursor = onClick ? 'pointer' : 'crosshair';
+      const [px, py] = relPos(host, ev); tt.show(tip ? tip(atual.p, atual.s) : `<b>${atual.p.label}</b>`, px, py);
+    });
+    hit.addEventListener('mouseleave', () => { tt.hide(); ring.setAttribute('visibility', 'hidden'); });
+    if (onClick) hit.addEventListener('click', ev => { const o = perto(ev); if (o) onClick(o.p); });
+    return svg;
+  }
+
+  /* Barras horizontais divergentes a partir do zero. rows: [{label, v}] */
+  function divbar(host, { rows, W = 640, barH = 16, gap = 10, labelW = 150, pos, neg, valueFmt = v => fmt(v, 0), interactive = true }) {
+    host.innerHTML = '';
+    legend(host, [{ name: pos.name, color: pos.color }, { name: neg.name, color: neg.color }]);
+    const top = 6, H = top + rows.length * (barH + gap) + 22;
+    const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, class: 'ch', role: 'img' }, host);
+    const mx = Math.max(...rows.map(r => Math.max(0, r.v)), 0), mn = Math.min(...rows.map(r => Math.min(0, r.v)), 0);
+    const span = (mx - mn) || 1, x0 = labelW + (mn < 0 ? 58 : 0), x1 = W - 58;
+    const sx = v => x0 + (x1 - x0) * (v - mn) / span, z = sx(0);
+    niceTicks(mn, mx || 1, 4).filter(v => v >= mn - 1e-9 && v <= mx + 1e-9).forEach(v => {
+      el('line', { x1: sx(v), x2: sx(v), y1: top - 2, y2: H - 20, class: Math.abs(v) < 1e-12 ? 'ch-axis' : 'ch-grid' }, svg);
+      el('text', { x: sx(v), y: H - 6, class: 'ch-tick', 'text-anchor': 'middle' }, svg).textContent = fmt(v, 0);
+    });
+    const tt = interactive ? tooltipLayer(host) : null;
+    rows.forEach((r, i) => {
+      const y = top + i * (barH + gap), w = Math.abs(sx(r.v) - z), c = r.v >= 0 ? pos.color : neg.color;
+      el('text', { x: labelW - 8, y: y + barH / 2 + 4, class: 'ch-label', 'text-anchor': 'end' }, svg).textContent = r.label;
+      const rr = Math.min(4, w / 2), d = r.v >= 0
+        ? `M${z},${y} h${w - rr} a${rr},${rr} 0 0 1 ${rr},${rr} v${barH - 2 * rr} a${rr},${rr} 0 0 1 ${-rr},${rr} h${-(w - rr)} z`
+        : `M${z},${y} h${-(w - rr)} a${rr},${rr} 0 0 0 ${-rr},${rr} v${barH - 2 * rr} a${rr},${rr} 0 0 0 ${rr},${rr} h${w - rr} z`;
+      const p = el('path', { d, style: `fill:${c}` }, svg);
+      const tv = el('text', { x: r.v >= 0 ? z + w + 6 : z - w - 6, y: y + barH / 2 + 4, class: 'ch-val', 'text-anchor': r.v >= 0 ? 'start' : 'end' }, svg);
+      tv.textContent = valueFmt(r.v);
+      if (tt) {
+        const hb = el('rect', { x: x0 - 4, y: y - gap / 2, width: x1 - x0 + 60, height: barH + gap, class: 'ch-hitbar' }, svg);
+        hb.addEventListener('mousemove', ev => { const [px, py] = relPos(host, ev); tt.show(`<b>${valueFmt(r.v)}</b><br>${r.label}`, px, py); p.classList.add('on'); });
+        hb.addEventListener('mouseleave', () => { tt.hide(); p.classList.remove('on'); });
+      }
+    });
+    return svg;
+  }
+
+  /* Curva T*(γ) de um agrupamento (simulador e dashboard). */
+  function curvaGamma(host, r, g, u) {
+    const I = window.I18N, t = I.t, br = I.num;
+    const W = Math.max(300, Math.round(host.clientWidth || 640));
+    const mx0 = Math.max(...r.curva.map(c => c.T), r.F || 0);
+    const [k, lab] = I.emMil(u) ? [1, u] : mx0 >= 1e6 ? [1e6, t('u.mi.longo', { u })] : mx0 >= 1e4 ? [1e3, t('u.mil.longo', { u })] : [1, u];
+    const xs = r.curva.map(c => c.g), ys = r.curva.map(c => c.T / k), Fk = (r.F || 0) / k;
+    const i = Math.min(19, Math.floor(g * 20)), a = r.curva[i], b = r.curva[i + 1] || a;
+    const yg = a.T + (b.T - a.T) * Math.max(0, Math.min(1, (g - a.g) / 0.05));
+    const marks = [{ x: g, y: yg / k, label: `γ = ${br(g, 2)}: ${I.money(yg, u)}`, color: 'var(--s1)', anchor: g > 0.6 ? 'end' : 'start', dx: g > 0.6 ? -8 : 8 }];
+    if (r.gStar != null && r.gStar > 0) marks.push({ x: r.gStar, y: 0, label: `γ* = ${br(r.gStar, 2)}`, color: 'var(--s3)', dy: -10 });
+    const ymax = Math.max(...ys, Fk) * 1.15 || 1;
+    return lines(host, { series: [{ name: 'T*', color: 'var(--s1)', x: xs, y: ys }], W, H: 250, xLabel: t('ch.gamma.x'), xName: 'γ', yLabel: 'T* (' + lab + ')',
+      xDomain: [0, 1], yDomain: [0, ymax], xFmt: v => br(v, 2), yFmt: v => br(v, ymax < 5 ? 2 : ymax < 50 ? 1 : 0), interactive: true,
+      hlines: Fk > 0 && Fk < ymax ? [{ v: Fk, label: t('ch.F') }] : [], marks });
+  }
+  return { hbar, columns, lines, scatter, divbar, curvaGamma, fmt };
 })();
 if (typeof module !== 'undefined') module.exports = Charts;
