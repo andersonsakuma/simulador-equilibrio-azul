@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="pt-BR" data-title="dash.doctitle">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dashboard do Equilíbrio Azul</title>
+<meta name="description" data-ia="content=dash.desc" content="Panorama dos 101 lotes da Bolsa Azul ZERI recalculado pela Equação do Equilíbrio Azul e painel do local em análise no simulador.">
+<meta name="author" content="Anderson Sakuma">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%231d5268'/%3E%3Cpath d='M7 18c3-5 6-5 9 0s6 5 9 0' stroke='%23fff' stroke-width='3' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossorigin="anonymous">
+<link rel="stylesheet" href="assets/css/style.css">
+<script>try{var t=localStorage.getItem('ea-tema');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
+</head>
+<body>
+<nav class="site" data-ia="aria-label=nav.menu" aria-label="Páginas"><div class="wrap">
+  <a class="brand" href="index.html"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="14"/><path d="M7 18c3-5 6-5 9 0s6 5 9 0"/></svg><span data-i="nav.brand">Equilíbrio Azul</span></a>
+  <div class="links"><a href="index.html" data-i="nav.inicio">Início</a><a href="simulador.html" data-i="nav.sim">Simulador</a><a href="dashboard.html" aria-current="page" data-i="nav.dash">Dashboard</a></div>
+  <div class="right"><div class="lang" role="group" data-ia="aria-label=nav.lang" aria-label="Idioma"><button type="button" data-lang="pt" lang="pt-BR">PT</button><button type="button" data-lang="en" lang="en">EN</button><button type="button" data-lang="es" lang="es">ES</button></div>
+  <button class="themebtn" id="tema" type="button">Tema: automático</button></div>
+</div></nav>
+<header class="top slim"><div class="wrap"><div><div class="eyebrow">Rede ZERI Brasil · ZERI LAB · PPGTE-UTFPR</div><div class="rule"></div>
+  <h1 data-i="dash.title">Dashboard do Equilíbrio Azul</h1><p class="lede" data-i="dash.lede">Duas visões: a Bolsa Azul ZERI inteira recalculada pela equação, com os preços e a confiança que você escolher, e o painel do local que está aberto no simulador.</p></div></div></header>
+<nav class="tabs"><div class="wrap" role="tablist" data-ia="aria-label=sim.tabs" aria-label="Seções">
+  <button role="tab" id="t-geral" aria-controls="p-geral" aria-selected="true" type="button" data-i="dash.t.geral">101 países</button>
+  <button role="tab" id="t-local" aria-controls="p-local" aria-selected="false" type="button" data-i="dash.t.local">Local em análise</button>
+</div></nav>
+
+<section class="tabpanel wrap" id="p-geral" role="tabpanel" aria-labelledby="t-geral">
+  <div class="filters" role="group" data-ia="aria-label=dash.f.aria" aria-label="Filtros">
+    <label class="fi"><span data-i="dash.f.gam">γ, confiança</span><span class="gam"><input type="range" id="g-gam" min="0" max="1" step="0.05" value="0"><output id="g-gam-v">0,00</output></span></label>
+    <label class="fi"><span data-i="dash.f.co2">CO₂ (USD/t)</span><input type="number" id="g-co2" min="0" step="5"></label>
+    <label class="fi chk"><input type="checkbox" id="g-calor"><span data-i="dash.f.calor">Calor do biodigestor para a cervejaria</span></label>
+    <label class="fi"><span data-i="dash.f.macro">Macrorregião</span><select id="g-macro-f"></select></label>
+    <button class="btn sm" id="g-reset" type="button" data-i="dash.f.reset">Restaurar</button>
+  </div>
+  <div class="progress" id="g-prog"><i></i></div>
+  <div class="kpis k6" id="g-kpis"></div>
+  <div class="dgrid">
+    <div class="card s2"><h2 data-i="dash.map.t">Mapa por macrorregião</h2><p class="sub" data-i="dash.map.sub">Cada quadrado é um país (código ISO), em cinco faixas do indicador escolhido. Passe o mouse para ver os valores; clique para abrir o país no simulador.</p>
+      <div class="tools"><label class="fi"><span data-i="dash.map.met">Indicador</span><select id="g-met"></select></label></div>
+      <div id="g-map" class="tmap"></div><div id="g-leg" class="tleg"></div></div>
+    <div class="card"><h2 id="g-macro-t" data-i="dash.macro.t">Título social por macrorregião</h2><p class="sub" data-i="dash.macro.sub">Soma de T* dos lotes, em milhões de USD.</p><div class="chart" id="g-macro"></div></div>
+    <div class="card"><h2 data-i="dash.curva.t">Título total conforme a confiança</h2><p class="sub" data-i="dash.curva.sub">Soma de T* dos lotes filtrados para γ de 0 a 1. O ponto marca o γ escolhido.</p><div class="chart" id="g-curva"></div></div>
+    <div class="card"><h2 data-i="dash.gs.t">Distribuição de γ*</h2><p class="sub" data-i="dash.gs.sub">Número de lotes por faixa de γ*, a confiança entre os membros que dispensaria a doação.</p><div class="chart" id="g-gstar"></div></div>
+    <div class="card"><h2 data-i="dash.sc.t">Valor azul × título por lote</h2><p class="sub" data-i="dash.sc.sub">Cada ponto é um lote. Clique para abrir o país no simulador.</p><div class="chart" id="g-scat"></div></div>
+    <div class="card s2"><h2 data-i="dash.tab.t">Lotes com agrupamento melhor</h2><p class="sub" data-i="dash.tab.sub">Com a mesma doação e as mesmas restrições do lote (mesmo número de módulos, M13 como integrador, prioridade Maslow igual ou maior).</p><div id="g-tab"></div><div class="tools"><button class="btn sm" id="g-csv" type="button" data-i="dash.tab.csv">Baixar os lotes filtrados (CSV)</button><a class="btn sm" href="simulador.html#ranking" data-i="dash.tab.rank">Ranking completo no simulador</a></div></div>
+  </div>
+</section>
+
+<section class="tabpanel wrap" id="p-local" role="tabpanel" aria-labelledby="t-local" hidden>
+  <div class="srcbar"><label class="fi grow"><span data-i="dash.l.fonte">Local</span><select id="l-src"></select></label><a class="btn pri sm" id="l-abrir" href="simulador.html" data-i="dash.l.abrir">Abrir no simulador</a></div>
+  <p class="note warnote" id="l-aviso" hidden data-i="dash.l.aviso">O simulador ainda não foi aberto neste navegador; o painel mostra o lote padrão da Etiópia. Ajuste o local no simulador e volte aqui.</p>
+  <h2 class="lnome" id="l-nome"></h2><p class="meta" id="l-meta"></p>
+  <div class="kpis" id="l-kpis"></div><div class="chips" id="l-chips"></div>
+  <div class="dgrid">
+    <div class="card"><h2 data-i="dash.wf.t">Composição do valor azul</h2><p class="sub" data-i="dash.wf.sub">Do valor financeiro dos módulos marcados ao valor azul: soma de V, valor social E e cascata à taxa social.</p><div class="chart" id="l-wf"></div></div>
+    <div class="card"><h2 data-i="dash.lt.t">Título por módulo</h2><p class="sub" data-i="dash.lt.sub">t = φ − (V + γE) − b. Positivo: o módulo recebe parte da doação; negativo: repassa ao grupo parte do ganho da cascata.</p><div class="chart" id="l-t"></div><p class="note modleg" id="l-t-leg"></p></div>
+    <div class="card"><h2 data-i="card.curva">Título conforme a confiança</h2><p class="sub" data-i="card.curva.sub">T* do agrupamento marcado para γ de 0 a 1.</p><div class="chart" id="l-curva"></div></div>
+    <div class="card"><h2 data-i="dash.lcas.t">Cascata: valor presente por elo</h2><p class="sub" data-i="dash.lcas.sub">Elos ativos entre os módulos marcados, à taxa social.</p><div class="chart" id="l-cas"></div></div>
+    <div class="card s2"><h2 data-i="dash.cmp.t">Agrupamento marcado × equilíbrio azul</h2><div id="l-cmp"></div></div>
+  </div>
+</section>
+
+<footer><div class="wrap"><p data-i="autor">Anderson Sakuma — Pesquisador Rede ZERI Brasil / PPGTE-UTFPR / ApoloLab / IPÊ-FIS. Curitiba, outubro de 2026.</p><p data-i="foot">Equilíbrio Azul · proposta de outubro de 2026, ainda sem revisão por pares · dados do estudo ZERI LAB (Economia Azul aplicada aos 100 países de menor IDH e Bolsa Azul ZERI) · roda inteiro no navegador, sem servidor.</p></div></footer>
+<script src="assets/js/i18n.js"></script>
+<script src="assets/data/dados.js"></script>
+<script src="assets/js/engine.js"></script>
+<script src="assets/js/estado.js"></script>
+<script src="assets/js/charts.js"></script>
+<script src="assets/js/dashboard.js"></script>
+</body>
+</html>
